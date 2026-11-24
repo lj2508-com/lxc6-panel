@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>webmgr 控制台</title>
+<style>
+:root{
+  --bg:#0b0f14; --panel:#111820; --panel-hover:#16202b; --panel-2:#0e151c;
+  --border:#1e2a36; --text:#e6edf3; --muted:#8b98a5;
+  --accent:#22d3ee; --ok:#34d399; --warn:#fbbf24; --danger:#f87171;
+  --track:#1b2530;
+  --font-sans:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --font-mono:"JetBrains Mono","Cascadia Code",ui-monospace,Consolas,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+  --ease-out:cubic-bezier(.2,.9,.3,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:14px;
+  padding:20px;min-height:100vh;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1320px;margin:0 auto}
+
+/* ============ 动画关键帧 ============ */
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.95) translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes rowIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+@keyframes popValue{0%{transform:scale(1)}38%{transform:scale(1.055)}100%{transform:scale(1)}}
+@keyframes pulseDot{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,.55)}55%{box-shadow:0 0 0 6px rgba(248,113,113,0)}}
+@keyframes glowPulse{0%,100%{box-shadow:0 0 6px rgba(34,211,238,.55)}50%{box-shadow:0 0 14px rgba(34,211,238,.95)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes stripe{0%{background-position:0 0}100%{background-position:32px 0}}
+@keyframes okFlash{0%{background:rgba(52,211,153,.22)}100%{background:transparent}}
+
+/* ============ 顶栏 ============ */
+.topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:0 2px 14px;
+  animation:fadeUp .35s var(--ease-out) both}
+.brand{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600}
+.brand .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 10px var(--accent);animation:glowPulse 3.2s ease-in-out infinite}
+.chip{font-family:var(--font-mono);font-size:12px;color:var(--muted);
+  background:var(--panel);border:1px solid var(--border);padding:3px 9px;border-radius:6px;
+  transition:border-color .2s,color .2s}
+.chip:hover{border-color:#2c3b4b;color:var(--text)}
+.spacer{flex:1}
+.refresh-info{font-size:12px;color:var(--muted);font-family:var(--font-mono);
+  transition:color .3s;min-width:74px;text-align:right}
+.refresh-info.tick{color:var(--accent)}
+.btn{font:inherit;font-size:13px;color:var(--text);background:transparent;
+  border:1px solid var(--border);padding:6px 14px;border-radius:7px;cursor:pointer;
+  transition:border-color .18s,color .18s,transform .1s,background .18s;position:relative}
+.btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(34,211,238,.05)}
+.btn:active{transform:translateY(1px) scale(.985)}
+.btn.loading{opacity:.6;pointer-events:none}
+.btn.loading::after{content:"";position:absolute;right:10px;top:50%;width:11px;height:11px;
+  margin-top:-6px;border:1.6px solid rgba(255,255,255,.25);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite}
+.btn.sm{padding:3px 10px;font-size:12px;border-radius:6px}
+.btn.sm.loading::after{display:none}
+.btn.ok:hover{border-color:var(--ok);color:var(--ok);background:rgba(52,211,153,.06)}
+.btn.danger:hover{border-color:var(--danger);color:var(--danger);background:rgba(248,113,113,.06)}
+
+/* ============ 标签页 ============ */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;
+  animation:fadeUp .4s var(--ease-out) .04s both}
+.tab{font:inherit;font-size:13px;color:var(--muted);background:none;border:none;
+  padding:9px 16px;cursor:pointer;position:relative;transition:color .2s}
+.tab:hover{color:var(--text)}
+.tab::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;
+  background:var(--accent);border-radius:2px;transform:scaleX(0);transform-origin:center;
+  transition:transform .26s var(--ease-out)}
+.tab[aria-selected="true"]{color:var(--accent)}
+.tab[aria-selected="true"]::after{transform:scaleX(1)}
+.tab .badge{display:inline-block;margin-left:6px;font-family:var(--font-mono);font-size:10.5px;
+  background:var(--track);color:var(--muted);padding:1px 6px;border-radius:9px;
+  transition:background .2s,color .2s}
+.tab[aria-selected="true"] .badge{background:rgba(34,211,238,.14);color:var(--accent)}
+
+/* ============ 卡片 ============ */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;
+  transition:border-color .2s,background .2s,box-shadow .25s,transform .25s var(--ease-out)}
+.card:hover{border-color:#2b3a4a;background:var(--panel-hover);
+  box-shadow:0 6px 22px rgba(0,0,0,.28)}
+.card-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+.card-title{font-size:12px;font-weight:500;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.card-sub{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+
+.panel-tab{display:none}
+.panel-tab.active{display:block;animation:fadeIn .28s var(--ease)}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+.kpi-grid .card{animation:fadeUp .42s var(--ease-out) both}
+.kpi-grid .card:nth-child(1){animation-delay:.06s}
+.kpi-grid .card:nth-child(2){animation-delay:.12s}
+.kpi-grid .card:nth-child(3){animation-delay:.18s}
+.kpi-grid .card:nth-child(4){animation-delay:.24s}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.row2 .card{animation:fadeUp .42s var(--ease-out) .3s both}
+.kpi-value{font-family:var(--font-mono);font-size:34px;font-weight:600;line-height:1.1;
+  letter-spacing:-.02em;transition:color .25s;transform-origin:left center}
+.kpi-value.changed{animation:popValue .42s var(--ease-out)}
+.kpi-value .unit{font-size:16px;color:var(--muted);font-weight:400;margin-left:2px}
+.kpi-note{font-size:12px;color:var(--muted);margin-top:8px;font-family:var(--font-mono)}
+.bar{height:6px;background:var(--track);border-radius:3px;overflow:hidden;margin-top:12px}
+.bar>i{display:block;height:100%;border-radius:3px;background:var(--ok);
+  transition:width .55s var(--ease-out),background .35s;width:0}
+.bar.slim{height:4px;margin-top:8px}
+.spark{width:100%;height:34px;margin-top:12px;display:block}
+
+/* ============ 服务状态 ============ */
+.svc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}
+.svc{display:flex;align-items:center;gap:9px;font-size:13px;padding:3px 0;
+  border-radius:5px;transition:background .18s}
+.svc:hover{background:rgba(34,211,238,.04)}
+.svc .pt{width:7px;height:7px;border-radius:50%;flex:0 0 auto;transition:background .3s}
+.pt.up{background:var(--ok);box-shadow:0 0 6px rgba(52,211,153,.5)}
+.pt.down{background:transparent;border:1.5px solid var(--danger);animation:pulseDot 1.9s ease-out infinite}
+.pt.off{background:#475569}
+.svc .nm{font-family:var(--font-mono);font-size:12.5px}
+.svc .st{margin-left:auto;font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+
+/* ============ 键值/端口 ============ */
+.kv{display:flex;justify-content:space-between;align-items:center;padding:7px 0;font-size:13px}
+.kv+.kv{border-top:1px solid rgba(30,42,54,.6)}
+.kv .k{color:var(--muted);font-size:12px}
+.kv .v{font-family:var(--font-mono);font-size:12.5px}
+.kv .v.copy{cursor:pointer;transition:color .18s}
+.kv .v.copy:hover{color:var(--accent)}
+.port{display:inline-block;font-family:var(--font-mono);font-size:11px;
+  background:rgba(34,211,238,.08);color:var(--accent);border:1px solid rgba(34,211,238,.22);
+  padding:2px 7px;border-radius:5px;margin-right:5px;transition:background .18s,border-color .18s}
+.port:hover{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.42)}
+.memline{margin-bottom:11px}
+.memline:last-child{margin-bottom:0}
+.memline .lbl{display:flex;justify-content:space-between;font-size:12px;
+  font-family:var(--font-mono);margin-bottom:5px}
+.memline .lbl span:first-child{color:var(--muted)}
+
+/* ============ 表格 ============ */
+.tbl-wrap{overflow-x:auto;margin:-4px -4px 0;padding:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.06em;
+  text-transform:uppercase;padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid rgba(30,42,54,.55);vertical-align:middle;
+  transition:background .18s}
+tr:last-child td{border-bottom:none}
+tbody tr.clickable{cursor:pointer}
+tbody tr.clickable:hover td{background:rgba(34,211,238,.05)}
+tbody tr.expanded td{background:rgba(34,211,238,.07)}
+tbody tr.main-row{animation:rowIn .3s var(--ease-out) both}
+tbody tr.main-row:nth-child(1){animation-delay:.02s}
+tbody tr.main-row:nth-child(2){animation-delay:.06s}
+tbody tr.main-row:nth-child(3){animation-delay:.1s}
+tbody tr.main-row:nth-child(4){animation-delay:.14s}
+tbody tr.main-row:nth-child(5){animation-delay:.18s}
+tbody tr.main-row:nth-child(6){animation-delay:.22s}
+.mono{font-family:var(--font-mono);font-size:12.5px}
+.muted{color:var(--muted)}
+.detail-row td{padding:0;border-bottom:1px solid var(--border);background:var(--panel-2)}
+.detail{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;padding:16px;
+  animation:slideDown .26s var(--ease-out) both}
+.state{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px}
+.state .pt{width:7px;height:7px;border-radius:50%}
+.state.up .pt{background:var(--ok);box-shadow:0 0 6px rgba(52,211,153,.5)}
+.state.down .pt{background:transparent;border:1.5px solid var(--danger);animation:pulseDot 1.9s ease-out infinite}
+.tag{font-family:var(--font-mono);font-size:11px;padding:2px 7px;border-radius:5px;
+  border:1px solid var(--border);color:var(--muted);transition:all .18s}
+.tag.on{border-color:rgba(52,211,153,.35);color:var(--ok);background:rgba(52,211,153,.08)}
+.tag.off{opacity:.6}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+tr.flash td{animation:okFlash .9s ease-out}
+
+/* ============ 页脚/横幅/提示 ============ */
+.foot{margin-top:16px;padding-top:14px;border-top:1px solid var(--border);
+  display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);font-family:var(--font-mono)}
+.banner{display:none;align-items:center;gap:8px;background:rgba(248,113,113,.1);
+  border:1px solid rgba(248,113,113,.3);color:#fca5a5;padding:9px 14px;border-radius:8px;
+  font-size:12.5px;margin-bottom:12px}
+.banner.show{display:flex;animation:slideDown .25s var(--ease-out)}
+.banner.warn{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.3);color:#fcd34d}
+.stale .card{opacity:.45;transition:opacity .3s}
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);
+  background:#16202b;border:1px solid var(--border);color:var(--text);font-size:12.5px;
+  padding:8px 16px;border-radius:8px;opacity:0;pointer-events:none;
+  transition:opacity .25s var(--ease-out),transform .25s var(--ease-out);
+  font-family:var(--font-mono);z-index:200;box-shadow:0 8px 28px rgba(0,0,0,.4)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.err{border-color:rgba(248,113,113,.5);color:#fca5a5}
+.empty{text-align:center;color:var(--muted);padding:28px;font-size:13px;animation:fadeIn .3s}
+
+/* ============ 弹窗 ============ */
+.modal-mask{position:fixed;inset:0;background:rgba(4,8,12,.72);backdrop-filter:blur(3px);
+  display:none;align-items:center;justify-content:center;z-index:100;padding:20px;
+  animation:fadeIn .2s var(--ease)}
+.modal-mask.show{display:flex}
+.modal{background:var(--panel);border:1px solid #24313f;border-radius:12px;width:100%;
+  max-width:520px;max-height:90vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.6);
+  animation:scaleIn .26s var(--ease-out)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;
+  padding:16px 18px;border-bottom:1px solid var(--border);font-size:15px;font-weight:600}
+.modal-x{background:none;border:none;color:var(--muted);font-size:22px;line-height:1;
+  cursor:pointer;padding:0 4px;transition:color .18s,transform .18s}
+.modal-x:hover{color:var(--danger);transform:rotate(90deg)}
+.modal-body{padding:18px}
+.modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:14px 18px;
+  border-top:1px solid var(--border)}
+.field{margin-bottom:14px}
+.field:last-child{margin-bottom:0}
+.field-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.field .req{color:var(--danger);margin-left:3px}
+.field input[type=text],.field input[type=number],.field input:not([type]){
+  width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;
+  color:var(--text);font-family:var(--font-mono);font-size:13px;padding:8px 11px;outline:none;
+  transition:border-color .2s,box-shadow .2s}
+.field input:focus{border-color:rgba(34,211,238,.6);box-shadow:0 0 0 3px rgba(34,211,238,.1)}
+.hint{font-size:11px;color:#6b7a89;margin-top:5px;font-family:var(--font-mono)}
+.addr-row{display:flex;align-items:stretch;gap:0;
+  background:var(--panel-2);border:1px solid var(--border);border-radius:7px;overflow:hidden;
+  transition:border-color .2s,box-shadow .2s}
+.addr-row:focus-within{border-color:rgba(34,211,238,.6);box-shadow:0 0 0 3px rgba(34,211,238,.1)}
+.addr-prefix{display:flex;align-items:center;padding:0 10px;font-family:var(--font-mono);
+  font-size:12.5px;color:var(--muted);background:rgba(34,211,238,.05);
+  border-right:1px solid var(--border);white-space:nowrap}
+.addr-row input{flex:1;border:none!important;border-radius:0!important;
+  background:transparent!important;box-shadow:none!important}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);
+  margin-bottom:10px;cursor:pointer;padding:4px 0}
+.check input{width:15px;height:15px;accent-color:#22d3ee;margin:0;cursor:pointer}
+.modal-err{display:none;margin-top:12px;padding:9px 12px;border-radius:7px;font-size:12.5px;
+  background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.32);color:#fca5a5;
+  white-space:pre-wrap;word-break:break-word}
+.modal-err.show{display:block;animation:slideDown .22s var(--ease-out)}
+.modal-log{display:none;margin-top:10px;font-family:var(--font-mono);font-size:11.5px;
+  color:var(--muted);line-height:1.9;max-height:150px;overflow:auto}
+.modal-log.show{display:block}
+.modal-log>div{animation:rowIn .24s var(--ease-out) both}
+.modal-log .okline{color:var(--ok)}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:#22303d;border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#2d3f50}
+
+@media(max-width:1100px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.row2{grid-template-columns:1fr}
+  .detail{grid-template-columns:1fr}}
+@media(max-width:760px){body{padding:14px}.kpi-grid{grid-template-columns:1fr}
+  .svc-grid{grid-template-columns:1fr}.kpi-value{font-size:29px}}
+
+/* 尊重系统「减少动态效果」设置 */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important}
+}
+/* ============ 初始化向导 ============ */
+.wiz-mask{position:fixed;inset:0;background:rgba(6,10,15,.92);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;z-index:300;padding:20px;overflow:auto}
+.wiz-mask.show{display:flex}
+.wiz-box{background:var(--panel);border:1px solid #24313f;border-radius:14px;width:100%;
+  max-width:760px;box-shadow:0 30px 80px rgba(0,0,0,.7);animation:scaleIn .3s var(--ease-out)}
+.wiz-head{padding:20px 24px 0}
+.wiz-title{font-size:18px;font-weight:600;display:flex;align-items:center;gap:10px}
+.wiz-title .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 12px var(--accent);animation:glowPulse 3s infinite}
+.wiz-sub{font-size:12.5px;color:var(--muted);margin-top:6px;font-family:var(--font-mono)}
+.wiz-dots{display:flex;gap:8px;margin:16px 0 0}
+.wiz-dot{width:26px;height:3px;border-radius:2px;background:var(--track);transition:background .25s}
+.wiz-dot.active{background:var(--accent)}
+.wiz-dot.done{background:rgba(34,211,238,.45)}
+.wiz-body{padding:22px 24px}
+.wiz-step{display:none}
+.wiz-step.active{display:block;animation:fadeIn .25s}
+.wiz-step h4{font-size:13px;font-weight:500;color:var(--muted);letter-spacing:.06em;
+  text-transform:uppercase;margin:0 0 12px}
+.dep{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:7px;
+  font-size:13px;background:var(--panel-2);margin-bottom:6px}
+.dep.ok .dep-ico{color:var(--ok)}
+.dep.bad .dep-ico{color:var(--danger)}
+.dep-ico{font-weight:700;width:14px}
+.dep-name{font-family:var(--font-mono);flex:0 0 140px}
+.dep-detail{color:var(--muted);font-size:12px}
+.dep-fix{font-size:11.5px;color:var(--warn);padding:2px 0 8px 34px}
+.dep-fix code{background:#1b2530;padding:1px 6px;border-radius:4px}
+.wiz-warn{background:rgba(251,191,36,.09);border:1px solid rgba(251,191,36,.3);
+  color:#fcd34d;font-size:12.5px;padding:8px 12px;border-radius:7px;margin-top:10px;line-height:1.7}
+.wiz-hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7}
+.wiz-hint code{background:#1b2530;padding:1px 5px;border-radius:4px;font-size:11.5px}
+.wiz-field{margin-bottom:16px}
+.wiz-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.wiz-field input{width:100%;background:var(--panel-2);border:1px solid var(--border);
+  border-radius:7px;color:var(--text);font-family:var(--font-mono);font-size:13px;
+  padding:9px 12px;outline:none;transition:border-color .2s,box-shadow .2s}
+.wiz-field input:focus{border-color:rgba(34,211,238,.6);box-shadow:0 0 0 3px rgba(34,211,238,.1)}
+.wiz-row{display:flex;gap:8px}
+.wiz-row input{flex:1}
+.wiz-row .btn{flex:0 0 auto;white-space:nowrap}
+.wiz-note{font-size:11.5px;color:#6b7a89;margin-top:5px;font-family:var(--font-mono)}
+.wiz-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.wiz-radio{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;
+  border:1px solid var(--border);margin-bottom:8px;cursor:pointer;transition:.18s;background:var(--panel-2)}
+.wiz-radio:hover{border-color:#2b3a4a}
+.wiz-radio:has(input:checked){border-color:rgba(34,211,238,.55);background:rgba(34,211,238,.05)}
+.wiz-radio input{margin-top:2px;accent-color:#22d3ee}
+.wiz-radio span{font-size:13px;line-height:1.6}
+.wiz-radio b{font-weight:600}
+.wiz-radio em{font-style:normal;color:var(--muted);font-size:12px}
+.wiz-radio code{background:#1b2530;padding:1px 5px;border-radius:4px;font-size:11px}
+.wiz-err{display:none;color:#fca5a5;font-size:12.5px;margin-top:8px}
+.wiz-foot{display:flex;justify-content:space-between;gap:10px;padding:16px 24px;
+  border-top:1px solid var(--border)}
+.wiz-foot .right{display:flex;gap:10px}
+.wiz-log{max-height:180px;overflow:auto;font-family:var(--font-mono);font-size:11.5px;
+  line-height:1.9;color:var(--muted);margin-top:6px}
+.wiz-log .okline{color:var(--ok)}
+.wiz-log .badline{color:var(--danger)}
+.wiz-token-box{margin-top:12px;padding:12px 14px;border-radius:8px;
+  background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.3)}
+.wiz-token-label{font-size:12px;color:var(--accent);margin-bottom:6px}
+.wiz-token-value{font-family:var(--font-mono);font-size:14px;word-break:break-all;color:var(--text);
+  background:#0e151c;padding:8px 10px;border-radius:6px;user-select:all}
+.wiz-token-hint{font-size:11.5px;color:var(--muted);margin-top:6px}
+.wiz-token-hint code{background:#1b2530;padding:1px 5px;border-radius:4px}
+@media(max-width:760px){.wiz-2col{grid-template-columns:1fr}.dep-name{flex-basis:110px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span><span id="brandText">webmgr 控制台</span></div>
+    <span class="chip" id="hostname">—</span>
+    <span class="chip" id="uptime">在线 —</span>
+    <div class="spacer"></div>
+    <span class="refresh-info" id="refreshInfo">5s 后刷新</span>
+    <button class="btn" id="btnRefresh">立即刷新</button>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="overview" aria-selected="true">概览</button>
+    <button class="tab" role="tab" data-tab="containers" aria-selected="false">容器<span class="badge" id="badgeCt">—</span></button>
+    <button class="tab" role="tab" data-tab="addresses" aria-selected="false">地址分配<span class="badge" id="badgeAddr">—</span></button>
+  </div>
+
+  <div class="banner" id="banner"><span>⚠</span><span id="bannerText"></span></div>
+
+  <!-- ================= 概览 ================= -->
+  <section class="panel-tab active" id="tab-overview">
+    <div class="kpi-grid">
+      <div class="card">
+        <div class="card-head"><span class="card-title">CPU 使用率</span><span class="card-sub" id="cpuCores">— 核</span></div>
+        <div class="kpi-value" id="cpuVal">— <span class="unit">%</span></div>
+        <div class="bar slim"><i id="cpuBar"></i></div>
+        <canvas class="spark" id="cpuSpark"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">内存</span><span class="card-sub" id="memSub">—</span></div>
+        <div class="kpi-value" id="memVal">— <span class="unit">MB</span></div>
+        <div class="bar"><i id="memBar"></i></div>
+        <div class="kpi-note" id="swapNote">Swap —</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">磁盘</span><span class="card-sub" id="diskSub">—</span></div>
+        <div class="kpi-value" id="diskVal">— <span class="unit">GB</span></div>
+        <div class="bar"><i id="diskBar"></i></div>
+        <div class="kpi-note" id="diskNote">剩余 —</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">系统负载</span><span class="card-sub">1 / 5 / 15 分钟</span></div>
+        <div class="kpi-value" id="loadVal" style="font-size:26px">— / — / —</div>
+        <div class="bar slim"><i id="loadBar"></i></div>
+        <div class="kpi-note" id="loadNote">—</div>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="card">
+        <div class="card-head"><span class="card-title">服务状态</span><span class="card-sub" id="svcSum">—</span></div>
+        <div class="svc-grid" id="svcGrid"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">网络</span><span class="card-sub">公网地址</span></div>
+        <div id="netBody"></div>
+      </div>
+    </div>
+
+    <div class="card" style="animation:fadeUp .42s var(--ease-out) .36s both">
+      <div class="card-head"><span class="card-title">容器概况</span><span class="card-sub" id="ctSum">—</span></div>
+      <div class="tbl-wrap" id="ctMini"></div>
+    </div>
+  </section>
+
+  <!-- ================= 容器 ================= -->
+  <section class="panel-tab" id="tab-containers">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">LXC 容器列表</span>
+        <span style="display:flex;align-items:center;gap:12px">
+          <span class="card-sub" id="ctListSum">—</span>
+          <button class="btn sm" id="btnNewCt" style="border-color:rgba(34,211,238,.45);color:var(--accent)">+ 新建容器</button>
+        </span>
+      </div>
+      <div class="tbl-wrap" id="ctTable"><div class="empty">加载中…</div></div>
+      <div class="foot" style="margin-top:12px;border:none;padding-top:0">
+        <span>点击任意行查看详情与操作 · 展开状态刷新后保持</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 地址 ================= -->
+  <section class="panel-tab" id="tab-addresses">
+    <div class="row2">
+      <div class="card">
+        <div class="card-head"><span class="card-title">IPv6 地址池</span><span class="card-sub" id="addrPrefix">—</span></div>
+        <div class="tbl-wrap" id="addrTable"><div class="empty">加载中…</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">宿主网络</span><span class="card-sub">本机</span></div>
+        <div id="hostNetBody"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">说明</span><span class="card-sub">NDP 与地址分配</span></div>
+      <div style="font-size:12.5px;line-height:1.9;color:var(--muted)">
+        <p>• <b style="color:var(--ok)">在用</b>：地址已注册 NDP 且被某个容器占用。</p>
+        <p>• <b style="color:var(--warn)">已注册待用</b>：在 <span class="mono">/etc/ndp-responder.conf</span> 中，但没有容器使用。</p>
+        <p>• <b style="color:var(--danger)">未注册</b>：容器配置里有该地址，但 NDP 应答器清单里没有，<b>入站会不通</b>。</p>
+        <p>• 新建容器时面板会自动注册 NDP 并添加 /128 路由。</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span id="footTime">最后刷新 —</span>
+    <span id="footCost">采集耗时 —</span>
+    <span>数据源 /proc · /sys/fs/cgroup · lxc-* · systemctl</span>
+    <span style="margin-left:auto;color:#3d4b5a">v2.1</span>
+  </div>
+</div>
+
+<!-- ============ 初始化向导 ============ -->
+<div class="wiz-mask" id="wizMask">
+  <div class="wiz-box">
+    <div class="wiz-head">
+      <div class="wiz-title"><span class="dot"></span>初始化 webmgr</div>
+      <div class="wiz-sub">零参数启动 · 自动检测环境 · 引导完成配置 <span id="wizStepOf"></span></div>
+      <div class="wiz-dots">
+        <span class="wiz-dot active" data-dot="1"></span>
+        <span class="wiz-dot" data-dot="2"></span>
+        <span class="wiz-dot" data-dot="3"></span>
+      </div>
+    </div>
+
+    <div class="wiz-body">
+      <!-- 步骤 1：环境检查 -->
+      <div class="wiz-step active" data-step="1">
+        <h4>环境检查</h4>
+        <div id="wizDeps"></div>
+        <div style="margin-top:18px">
+          <h4>系统信息</h4>
+          <div id="wizEnv"></div>
+        </div>
+        <div id="wizWarn1"></div>
+      </div>
+
+      <!-- 步骤 2：基础设置 -->
+      <div class="wiz-step" data-step="2">
+        <h4>面板设置</h4>
+        <div class="wiz-field">
+          <label>面板标题</label>
+          <input id="wTitle" placeholder="webmgr 控制台">
+        </div>
+        <div class="wiz-field">
+          <label>监听地址</label>
+          <input id="wListen" placeholder="0.0.0.0:8099">
+          <div class="wiz-note">只给本机访问可填 127.0.0.1:8099，再用 SSH 隧道打开</div>
+        </div>
+        <div class="wiz-field">
+          <label>访问令牌（留空自动生成）</label>
+          <div class="wiz-row">
+            <input id="wToken" type="password" placeholder="留空 = 自动生成 32 位随机令牌">
+            <button class="btn" id="wShowToken" type="button">显示</button>
+            <button class="btn" id="wGenToken" type="button">生成</button>
+          </div>
+          <div class="wiz-note">设置后访问需带 ?t=令牌；浏览器会记住 30 天</div>
+        </div>
+        <div class="wiz-err" id="wizErr2"></div>
+      </div>
+
+      <!-- 步骤 3：网络 -->
+      <div class="wiz-step" data-step="3">
+        <h4>IPv6 与网络</h4>
+        <div class="wiz-2col">
+          <div class="wiz-field">
+            <label>IPv6 前缀</label>
+            <input id="wPrefix" placeholder="自动探测，如 2001:db8:abcd::">
+          </div>
+          <div class="wiz-field">
+            <label>容器网关</label>
+            <input id="wGateway" placeholder="fe80::1">
+          </div>
+        </div>
+        <div class="wiz-field">
+          <label>容器网桥</label>
+          <input id="wBridge" placeholder="lxcbr6">
+        </div>
+
+        <h4 style="margin-top:18px">网络插件</h4>
+        <div id="wizPlugins"></div>
+        <div id="wizSuggest"></div>
+
+        <h4 style="margin-top:18px">新建容器默认值</h4>
+        <div class="wiz-2col">
+          <div class="wiz-field">
+            <label>内存上限 (MB)</label>
+            <input id="wizMem" type="number" min="32" max="1024" value="192">
+          </div>
+          <div class="wiz-field">
+            <label>磁盘上限 (MB)</label>
+            <input id="wizDisk" type="number" min="128" max="8192" value="500">
+          </div>
+        </div>
+
+        <div class="wiz-log" id="wizLog"></div>
+      </div>
+    </div>
+
+    <div class="wiz-foot">
+      <button class="btn" id="wizBack2" style="visibility:hidden">上一步</button>
+      <div class="right">
+        <button class="btn" id="wizBack3" style="display:none">上一步</button>
+        <button class="btn ok" id="wizNext1">下一步</button>
+        <button class="btn ok" id="wizNext2" style="display:none">下一步</button>
+        <button class="btn ok" id="wizApply" style="display:none;border-color:rgba(52,211,153,.5);color:var(--ok)">开始初始化</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast">已复制</div>
+
+<!-- 新建容器弹窗 -->
+<div class="modal-mask" id="modalMask">
+  <div class="modal">
+    <div class="modal-head">
+      <span>新建 LXC 容器</span>
+      <button class="modal-x" id="modalClose" title="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>容器名称<span class="req">*</span></label>
+        <input id="fName" placeholder="例如 c2" autocomplete="off" spellcheck="false">
+        <div class="hint">小写字母开头，可含数字和连字符，2-31 位</div>
+      </div>
+      <div class="field">
+        <label>IPv6 地址<span class="req">*</span></label>
+        <div class="addr-row">
+          <span class="addr-prefix" id="addrPrefix2"></span>
+          <input id="fSuffix" placeholder="11" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="hint" id="suffixHint">只填后缀（十六进制），也可粘贴完整地址</div>
+      </div>
+      <div class="field-2">
+        <div class="field">
+          <label>内存上限 (MB)</label>
+          <input id="fMem" type="number" value="192" min="32" max="1024">
+          <div class="hint">硬上限，非预占</div>
+        </div>
+        <div class="field">
+          <label>磁盘上限 (MB)</label>
+          <input id="fDisk" type="number" value="500" min="128" max="4096">
+          <div class="hint">稀疏镜像按实占算</div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="fStart" checked><span>创建后立即启动</span></label>
+        <label class="check"><input type="checkbox" id="fAuto"><span>设为开机自启</span></label>
+      </div>
+      <div class="modal-err" id="modalErr"></div>
+      <div class="modal-log" id="modalLog"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="modalCancel">取消</button>
+      <button class="btn ok" id="modalSubmit" style="border-color:rgba(52,211,153,.5);color:var(--ok)">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑容器配置弹窗 -->
+<div class="modal-mask" id="editMask">
+  <div class="modal">
+    <div class="modal-head">
+      <span>调整容器配置 · <span id="editName" style="color:var(--accent);font-family:var(--font-mono)"></span></span>
+      <button class="modal-x" id="editClose" title="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="kv" style="padding-top:0">
+        <span class="k">当前状态</span><span class="v" id="editState">—</span>
+      </div>
+      <div class="kv">
+        <span class="k">IPv6</span><span class="v" id="editIPv6">—</span>
+      </div>
+      <div class="kv" style="margin-bottom:14px">
+        <span class="k">磁盘实占</span><span class="v" id="editDiskUsed">—</span>
+      </div>
+
+      <div class="field-2">
+        <div class="field">
+          <label>内存上限 (MB)</label>
+          <input id="eMem" type="number" min="32" max="1024">
+          <div class="hint">运行中可热生效</div>
+        </div>
+        <div class="field">
+          <label>最大进程数</label>
+          <input id="ePids" type="number" min="64" max="8192">
+          <div class="hint">运行中可热生效</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>磁盘上限 (MB) <span style="color:var(--muted);font-size:11px">— 仅支持扩容</span></label>
+        <input id="eDisk" type="number" min="128" max="8192">
+        <div class="hint" id="editDiskHint">扩容需要容器处于停止状态</div>
+      </div>
+
+      <div class="field">
+        <label class="check"><input type="checkbox" id="eAuto"><span>开机自启</span></label>
+      </div>
+
+      <div class="modal-err" id="editErr"></div>
+      <div class="modal-log" id="editLog"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="editCancel">取消</button>
+      <button class="btn ok" id="editSubmit" style="border-color:rgba(52,211,153,.5);color:var(--ok)">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除容器确认弹窗 -->
+<div class="modal-mask" id="delMask">
+  <div class="modal" style="max-width:470px">
+    <div class="modal-head">
+      <span>删除容器</span>
+      <button class="modal-x" id="delClose" title="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13.5px;line-height:1.8">
+        即将删除容器
+        <b id="delName" style="color:var(--danger);font-family:var(--font-mono)"></b>
+      </p>
+      <div style="font-size:12.5px;color:var(--muted);line-height:2;margin-top:10px">
+        • 容器将先被停止<br>
+        • 磁盘镜像、配置文件全部销毁<br>
+        • NDP 应答注册与 <span class="mono">/128</span> 路由一并清理<br>
+        • <b style="color:var(--danger)">此操作不可恢复</b>
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label>请输入容器名以确认<span class="req">*</span></label>
+        <input id="delConfirm" autocomplete="off" spellcheck="false" placeholder="输入容器名">
+      </div>
+      <div class="modal-err" id="delErr"></div>
+      <div class="modal-log" id="delLog"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="delCancel">取消</button>
+      <button class="btn danger" id="delSubmit" style="border-color:rgba(248,113,113,.5);color:var(--danger)">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const MB=1024*1024, GB=1024*1024*1024;
+const colorFor = p => p>=85?'var(--danger)':p>=70?'var(--warn)':'var(--ok)';
+const fmtMB = b => ((b||0)/MB).toFixed(1);
+const fmtGB = b => ((b||0)/GB).toFixed(2);
+const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtUptime = s => { s=s||0; const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
+  return d>0?`在线 ${d} 天 ${h} 小时`:h>0?`在线 ${h} 小时 ${m} 分`:`在线 ${m} 分`; };
+const setBar=(el,p)=>{el.style.width=Math.min(100,Math.max(0,p||0))+'%';el.style.background=colorFor(p);};
+/* 数字变化动画 */
+const lastVals = {};
+function setValue(id, text, raw){
+  const el = $(id);
+  if (!el) return;
+  el.innerHTML = text;
+  if (raw !== undefined && lastVals[id] !== undefined && lastVals[id] !== raw) {
+    el.classList.remove('changed');
+    void el.offsetWidth;      // 强制重排以重启动画
+    el.classList.add('changed');
+  }
+  if (raw !== undefined) lastVals[id] = raw;
+}
+
+function toast(msg, isErr){
+  const el=$('toast'); el.textContent=msg;
+  el.classList.toggle('err', !!isErr);
+  el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2200);
+}
+function banner(msg, warn){
+  if(!msg){ $('banner').classList.remove('show'); return; }
+  $('bannerText').textContent=msg;
+  $('banner').classList.add('show'); $('banner').classList.toggle('warn', !!warn);
+}
+
+/* ---------- 迷你曲线 ---------- */
+const history=[];
+function drawSpark(){
+  const cv=$('cpuSpark'); if(!cv) return;
+  const dpr=window.devicePixelRatio||1, w=cv.clientWidth||240, h=cv.clientHeight||34;
+  cv.width=w*dpr; cv.height=h*dpr;
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+  if(history.length<2) return;
+  const max=Math.max(...history,20), stepX=w/(history.length-1);
+  const g=ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'rgba(34,211,238,.28)'); g.addColorStop(1,'rgba(34,211,238,0)');
+  ctx.beginPath(); ctx.moveTo(0,h);
+  history.forEach((v,i)=>ctx.lineTo(i*stepX,h-(v/max)*(h-3)));
+  ctx.lineTo(w,h); ctx.closePath(); ctx.fillStyle=g; ctx.fill();
+  ctx.beginPath();
+  history.forEach((v,i)=> i?ctx.lineTo(i*stepX,h-(v/max)*(h-3)):ctx.moveTo(0,h-(v/max)*(h-3)));
+  ctx.strokeStyle='#22d3ee'; ctx.lineWidth=1.4; ctx.lineJoin='round'; ctx.stroke();
+}
+
+/* ---------- 概览 ---------- */
+function renderOverview(d){
+  $('hostname').textContent = d.host?.name || '—';
+  $('uptime').textContent = fmtUptime(d.host?.uptime_sec);
+  $('cpuCores').textContent = (d.host?.cpus||1)+' 核';
+
+  const cpu=d.cpu?.usage_pct||0;
+  setValue('cpuVal', cpu.toFixed(1)+' <span class="unit">%</span>', cpu.toFixed(1));
+  setBar($('cpuBar'),cpu); history.push(cpu); if(history.length>60) history.shift(); drawSpark();
+
+  const m=d.mem||{total:0,used:0};
+  const memPct=m.total?m.used/m.total*100:0;
+  setValue('memVal', fmtMB(m.used)+' <span class="unit">MB</span>', fmtMB(m.used));
+  $('memSub').textContent = `${fmtMB(m.used)} / ${fmtMB(m.total)} MB`;
+  setBar($('memBar'),memPct);
+  $('swapNote').textContent = `Swap ${fmtMB(m.swap_used)} / ${fmtMB(m.swap_total)} MB · 内存使用率 ${memPct.toFixed(0)}%`;
+
+  const dk=d.disk||{};
+  setValue('diskVal', fmtGB(dk.used)+' <span class="unit">GB</span>', dk.usage_pct);
+  $('diskSub').textContent = `${fmtGB(dk.used)} / ${fmtGB(dk.total)} GB`;
+  setBar($('diskBar'),dk.usage_pct||0);
+  $('diskNote').textContent = `剩余 ${fmtGB(dk.free)} GB · 使用率 ${dk.usage_pct||0}%`;
+
+  const L=d.load||[0,0,0], cores=d.host?.cpus||1;
+  setValue('loadVal', `${L[0].toFixed(2)} / ${L[1].toFixed(2)} / ${L[2].toFixed(2)}`, L[0].toFixed(2));
+  setBar($('loadBar'), Math.min(100, L[0]/cores*100));
+  $('loadNote').textContent = `${cores} 核 · 负载比 ${(L[0]/cores).toFixed(2)}`;
+
+  const svcs=d.services||[];
+  let up=0;
+  $('svcGrid').innerHTML = svcs.map(s=>{
+    const isUp = s.status==='active'||s.status==='running';
+    if(isUp) up++;
+    const cls = isUp?'up':(s.status==='absent'?'off':'down');
+    return `<div class="svc"><span class="pt ${cls}"></span><span class="nm">${esc(s.name)}</span><span class="st">${esc(s.status)}</span></div>`;
+  }).join('');
+  $('svcSum').textContent = `${up}/${svcs.length} 运行中`;
+
+  const n=d.net||{};
+  $('netBody').innerHTML =
+    `<div class="kv"><span class="k">IPv4</span><span class="v copy" data-copy="${esc(n.ipv4)}">${esc(n.ipv4||'—')}</span></div>`+
+    ((n.ipv6||[]).slice(0,4).map((ip,i)=>`<div class="kv"><span class="k">IPv6${i?' #'+(i+1):''}</span><span class="v copy" data-copy="${esc(ip)}">${esc(ip)}</span></div>`).join(''))+
+    ((n.ipv6||[]).length>4?`<div class="kv"><span class="k">…</span><span class="v muted">另有 ${n.ipv6.length-4} 个</span></div>`:'')+
+    `<div class="kv"><span class="k">IPv6 网关</span><span class="v">${esc(n.gateway_v6||'—')}</span></div>`;
+
+  const cs=d.containers||[];
+  state.ctNames = cs.map(c=>c.name);
+  $('badgeCt').textContent = `${cs.filter(c=>c.state==='RUNNING').length}/${cs.length}`;
+  $('ctSum').textContent = `${cs.filter(c=>c.state==='RUNNING').length}/${cs.length} 运行中`;
+  $('ctMini').innerHTML = cs.length ? tableHTML(cs, true) : '<div class="empty">没有容器</div>';
+
+  $('footTime').textContent='最后刷新 '+new Date().toLocaleTimeString('zh-CN',{hour12:false});
+  $('footCost').textContent=`采集耗时 ${d.collect_ms||0}ms`;
+}
+
+/* ---------- 容器表格 ---------- */
+function tableHTML(cs, mini){
+  const head = `<table><thead><tr>
+    <th>名称</th><th>状态</th><th>自启</th><th>IPv6</th>${mini?'':'<th>IPv4</th>'}
+    <th>内存</th><th>磁盘</th>${mini?'':'<th>端口</th><th>PID</th>'}<th>${mini?'':'操作'}</th>
+  </tr></thead><tbody>`;
+  const rows = cs.map(c=>{
+    const up = c.state==='RUNNING';
+    const memPct = c.mem_max? c.mem_current/c.mem_max*100 : 0;
+    const dskPct = c.disk_total? c.disk_used/c.disk_total*100 : 0;
+    const ip6 = (c.ipv6&&c.ipv6.length)? c.ipv6.map(esc).join('<br>') : '<span class="muted">—</span>';
+    const ports = (c.ports&&c.ports.length)? c.ports.map(p=>`<span class="port">${esc(p)}</span>`).join('') : '<span class="muted">—</span>';
+    const ops = mini ? '' : `<td><div class="actions">
+        ${up?`<button class="btn sm danger" data-act="stop" data-name="${esc(c.name)}">停止</button>
+              <button class="btn sm" data-act="restart" data-name="${esc(c.name)}">重启</button>`
+            :`<button class="btn sm ok" data-act="start" data-name="${esc(c.name)}">启动</button>`}
+      </div></td>`;
+    return `<tr class="clickable main-row${mini?'':''}" data-name="${esc(c.name)}" data-mini="${mini?1:0}">
+      <td class="mono">${esc(c.name)}</td>
+      <td><span class="state ${up?'up':'down'}"><span class="pt"></span>${esc(c.state)}</span></td>
+      <td><span class="tag ${c.autostart?'on':'off'}">${c.autostart?'开':'关'}</span></td>
+      <td class="mono">${ip6}</td>
+      ${mini?'':`<td class="mono">${esc(c.ipv4||'—')}</td>`}
+      <td class="mono">${up?`${fmtMB(c.mem_current)}/${fmtMB(c.mem_max)} MB<div class="bar slim" style="margin-top:5px"><i style="width:${memPct}%;background:${colorFor(memPct)}"></i></div>`:'<span class="muted">—</span>'}</td>
+      <td class="mono">${fmtMB(c.disk_used)}/${fmtMB(c.disk_total)} MB<div class="bar slim" style="margin-top:5px"><i style="width:${dskPct}%;background:${colorFor(dskPct)}"></i></div></td>
+      ${mini?'':`<td>${ports}</td>`}
+      ${mini?'':`<td class="mono">${up?c.pids:'—'}</td>`}
+      ${ops}
+    </tr>`;
+  }).join('');
+  return head+rows+'</tbody></table>';
+}
+
+function renderContainers(cs){
+  state.ct = cs;
+  state.ctNames = cs.map(c=>c.name);
+  // 清理已不存在的展开项
+  for (const n of Array.from(state.expanded)) {
+    if (!state.ctNames.includes(n)) state.expanded.delete(n);
+  }
+  $('badgeCt').textContent = `${cs.filter(c=>c.state==='RUNNING').length}/${cs.length}`;
+  $('ctListSum').textContent = `${cs.filter(c=>c.state==='RUNNING').length}/${cs.length} 运行中 · 共 ${cs.length} 个`;
+  $('ctTable').innerHTML = cs.length ? tableHTML(cs,false) : '<div class="empty">没有容器</div>';
+  // 恢复展开状态（关键修复：刷新后不再丢失）
+  restoreExpanded();
+}
+
+function restoreExpanded(){
+  if (!state.expanded.size) return;
+  const cs = state.ct || [];
+  document.querySelectorAll('#ctTable tr.main-row').forEach(tr=>{
+    const name = tr.dataset.name;
+    if (!state.expanded.has(name)) return;
+    const c = cs.find(x=>x.name===name);
+    if (!c) return;
+    tr.classList.add('expanded');
+    if (!tr.nextElementSibling || !tr.nextElementSibling.classList.contains('detail-row')){
+      tr.parentNode.insertBefore(buildDetailRow(c), tr.nextSibling);
+    }
+  });
+}
+
+function buildDetailRow(c){
+  const total = c.mem_current||0;
+  const parts=[
+    {k:'anon（进程堆）',v:c.anon,col:'var(--accent)'},
+    {k:'file（可回收缓存）',v:c.file,col:'#64748b'},
+    {k:'kernel（内核结构）',v:c.kernel,col:'#475569'}
+  ];
+  const memBars = parts.map(p=>{
+    const pct = total? p.v/total*100 : 0;
+    return `<div class="memline"><div class="lbl"><span>${p.k}</span><span>${fmtMB(p.v)} MB · ${pct.toFixed(0)}%</span></div>
+      <div class="bar slim" style="margin-top:0"><i style="width:${pct}%;background:${p.col}"></i></div></div>`;
+  }).join('');
+  const row = document.createElement('tr');
+  row.className='detail-row';
+  row.dataset.for = c.name;
+  row.innerHTML = `<td colspan="9"><div class="detail">
+    <div>
+      <div class="kv"><span class="k">名称</span><span class="v">${esc(c.name)}</span></div>
+      <div class="kv"><span class="k">状态</span><span class="v">${esc(c.state)}</span></div>
+      <div class="kv"><span class="k">自启</span><span class="v">${c.autostart?'已开启':'未开启'}</span></div>
+      <div class="kv"><span class="k">IPv6</span><span class="v">${(c.ipv6||[]).map(esc).join(', ')||'—'}</span></div>
+      <div class="kv"><span class="k">NDP 注册</span><span class="v">${c.registered?'<span style="color:var(--ok)">已注册</span>':'<span style="color:var(--danger)">未注册（入站不通）</span>'}</span></div>
+      <div class="kv"><span class="k">配置</span><span class="v muted">${esc(c.config)}</span></div>
+      <div class="kv"><span class="k">磁盘镜像</span><span class="v muted">${esc(c.rootfs)}.raw</span></div>
+      <div class="kv"><span class="k">端口</span><span class="v">${(c.ports||[]).map(p=>`<span class="port">${esc(p)}</span>`).join('')||'—'}</span></div>
+    </div>
+    <div>
+      <div class="card-sub" style="margin-bottom:10px">内存构成 · ${fmtMB(total)} MB 总计 · PID ${c.pids||0}</div>
+      ${memBars}
+      <div style="margin-top:14px" class="actions">
+        ${c.state==='RUNNING'
+          ? `<button class="btn sm danger" data-act="stop" data-name="${esc(c.name)}">停止</button>
+             <button class="btn sm" data-act="restart" data-name="${esc(c.name)}">重启</button>`
+          : `<button class="btn sm ok" data-act="start" data-name="${esc(c.name)}">启动</button>`}
+        <button class="btn sm" data-act="edit" data-name="${esc(c.name)}" style="border-color:rgba(34,211,238,.4);color:var(--accent)">编辑配置</button>
+        <button class="btn sm" data-act="delete" data-name="${esc(c.name)}" style="border-color:rgba(248,113,113,.35);color:var(--danger)">删除</button>
+        <button class="btn sm" data-act="refresh">刷新</button>
+      </div>
+    </div>
+  </div></td>`;
+  return row;
+}
+
+function toggleDetail(tr){
+  const name = tr.dataset.name;
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains('detail-row')) {
+    next.remove();
+    tr.classList.remove('expanded');
+    state.expanded.delete(name);
+    return;
+  }
+  const c = (state.ct||[]).find(x=>x.name===name);
+  if (!c) return;
+  tr.classList.add('expanded');
+  state.expanded.add(name);
+  tr.parentNode.insertBefore(buildDetailRow(c), tr.nextSibling);
+}
+
+/* ---------- 地址 ---------- */
+function renderAddresses(a){
+  const rows = (a.rows||[]);
+  $('badgeAddr').textContent = String(rows.length);
+  $('addrPrefix').textContent = a.prefix || '';
+  state.nextFree = a.next_free || '';
+  const stateTag = s => s==='used'?'<span style="color:var(--ok)">在用</span>'
+    : s==='reserved'?'<span style="color:var(--warn)">已注册待用</span>'
+    : '<span style="color:var(--danger)">未注册</span>';
+  $('addrTable').innerHTML = rows.length ? `<table><thead><tr>
+      <th>地址</th><th>状态</th><th>归属容器</th><th>说明</th></tr></thead><tbody>`+
+    rows.map(r=>`<tr class="main-row">
+      <td class="mono"><span data-copy="${esc(r.address)}" style="cursor:pointer">${esc(r.address)}</span></td>
+      <td>${stateTag(r.state)}</td>
+      <td class="mono">${esc(r.container||'—')}</td>
+      <td class="muted" style="font-size:12px">${esc(r.note||'')}</td>
+    </tr>`).join('')+'</tbody></table>' : '<div class="empty">没有地址记录</div>';
+
+  const host = a.host_addrs||[];
+  $('hostNetBody').innerHTML =
+    `<div class="kv"><span class="k">IPv6 网关</span><span class="v">${esc(a.gateway||'—')}</span></div>
+     <div class="kv"><span class="k">前缀</span><span class="v">${esc(a.prefix||'—')}</span></div>
+     <div class="kv"><span class="k">下一个可用</span><span class="v" style="color:var(--accent)">${esc(a.next_free?'::'+a.next_free:'—')}</span></div>
+     <div class="kv"><span class="k">NDP 已注册</span><span class="v">${(a.registered||[]).length} 个</span></div>`+
+    host.map((ip,i)=>`<div class="kv"><span class="k">宿主 IPv6 #${i+1}</span><span class="v copy" data-copy="${esc(ip)}">${esc(ip)}</span></div>`).join('');
+}
+
+/* ---------- 新建容器 ---------- */
+let prefixCache = '';
+
+async function openCreate(){
+  $('modalErr').classList.remove('show');
+  $('modalLog').classList.remove('show');
+  $('modalLog').innerHTML = '';
+  $('modalMask').classList.add('show');
+  try{
+    const a = await fetchJSON('/api/addresses');
+    if(a.prefix) prefixCache = a.prefix.replace('/48','');
+    $('addrPrefix2').textContent = prefixCache;
+    if(a.next_free){ $('fSuffix').value = a.next_free; }
+    $('suffixHint').textContent = '只填后缀（十六进制），建议 ' + (a.next_free ? '::'+a.next_free : '');
+  }catch(e){}
+  if(!$('fName').value){
+    const n = (state.ctNames||[]).length + 1;
+    $('fName').value = 'c' + n;
+  }
+  setTimeout(()=>$('fName').focus(), 80);
+}
+function closeCreate(){ $('modalMask').classList.remove('show'); }
+
+async function submitCreate(){
+  const name = $('fName').value.trim().toLowerCase();
+  const suffix = $('fSuffix').value.trim();
+  const mem = parseInt($('fMem').value,10);
+  const disk = parseInt($('fDisk').value,10);
+  const start = $('fStart').checked;
+  const auto = $('fAuto').checked;
+
+  const errBox = $('modalErr');
+  errBox.classList.remove('show');
+  const bad = m => { errBox.textContent = m; errBox.classList.add('show'); return false; };
+
+  if(!/^[a-z][a-z0-9-]{1,30}$/.test(name)) return bad('名称需小写字母开头，2-31 位，可含数字与连字符');
+  if(!suffix) return bad('请填写 IPv6 后缀');
+  if(!(mem>=32 && mem<=1024)) return bad('内存需在 32-1024 MB 之间');
+  if(!(disk>=128 && disk<=4096)) return bad('磁盘需在 128-4096 MB 之间');
+
+  const btn = $('modalSubmit');
+  btn.classList.add('loading'); btn.textContent = '创建中…';
+  const log = $('modalLog');
+  log.classList.add('show');
+  log.innerHTML = '<div>正在创建，请稍候（约 3-15 秒）…</div>';
+
+  try{
+    const r = await fetch('/api/container/create', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name, suffix, mem_mb:mem, disk_mb:disk, start, autostart:auto})
+    });
+    const d = await r.json();
+    if(d.steps && d.steps.length){
+      log.innerHTML = d.steps.map(s=>`<div class="okline">✓ ${esc(s)}</div>`).join('');
+    }
+    if(!r.ok || !d.ok){
+      log.innerHTML += `<div style="color:var(--danger)">✗ 失败</div>`;
+      errBox.textContent = d.error || ('HTTP ' + r.status);
+      errBox.classList.add('show');
+      return;
+    }
+    log.innerHTML += `<div class="okline">✓ ${esc(d.message||'创建完成')}</div>`;
+    toast('容器 ' + name + ' 创建成功');
+    setTimeout(async ()=>{ closeCreate(); state.tab='containers'; await switchTab('containers'); }, 900);
+  }catch(e){
+    errBox.textContent = '请求失败：' + e.message;
+    errBox.classList.add('show');
+  }finally{
+    btn.classList.remove('loading'); btn.textContent = '创建';
+  }
+}
+
+/* ---------- 请求 ---------- */
+async function fetchJSON(url){
+  const r = await fetch(url, {cache:'no-store'});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return await r.json();
+}
+
+let state = {tab:'overview', lastOK:0, ct:[], ctNames:[], expanded:new Set(), nextFree:''};
+
+async function refresh(){
+  const btn=$('btnRefresh'); btn.classList.add('loading');
+  try{
+    if(state.tab==='overview'){
+      renderOverview(await fetchJSON('/api/stats'));
+    } else if(state.tab==='containers'){
+      renderContainers((await fetchJSON('/api/containers')).containers||[]);
+    } else {
+      renderAddresses(await fetchJSON('/api/addresses'));
+    }
+    state.lastOK = Date.now();
+    banner('');
+  }catch(e){
+    banner('加载失败：'+e.message+'（显示的是上次数据）');
+    document.body.classList.add('stale');
+  }finally{
+    btn.classList.remove('loading');
+    countdown = 5;
+  }
+}
+
+async function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected', String(t.dataset.tab===tab)));
+  document.querySelectorAll('.panel-tab').forEach(p=>p.classList.remove('active'));
+  state.tab = tab;
+  $('tab-'+tab).classList.add('active');
+  document.body.classList.remove('stale');
+  countdown = 5;
+  await refresh();
+}
+
+async function doAction(name, action){
+  if(action==='stop' || action==='restart'){
+    if(!confirm(`确定要${action==='stop'?'停止':'重启'}容器 ${name} 吗？`)) return;
+  }
+  try{
+    const r = await fetch('/api/action', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name, action})
+    });
+    const d = await r.json();
+    if(!r.ok || !d.ok){ toast('操作失败：'+(d.error||('HTTP '+r.status)), true); return; }
+    toast(`${action==='start'?'启动':action==='stop'?'停止':'重启'} ${name} 成功`);
+    await refresh();
+    // 高亮该行
+    const tr = document.querySelector(`#ctTable tr.main-row[data-name="${name}"]`);
+    if(tr) tr.classList.add('flash');
+  }catch(e){ toast('操作失败：'+e.message, true); }
+}
+
+/* ---------- 编辑容器配置 ---------- */
+let editingName = '';
+
+async function openEdit(name){
+  editingName = name;
+  $('editErr').classList.remove('show');
+  $('editLog').classList.remove('show');
+  $('editLog').innerHTML = '';
+  $('editName').textContent = name;
+  $('editMask').classList.add('show');
+  try{
+    const d = await fetchJSON('/api/container/config?name=' + encodeURIComponent(name));
+    const c = d.config || {};
+    $('editState').textContent = c.state || '—';
+    $('editIPv6').textContent = (c.ipv6||[]).join(', ') || '—';
+    $('editDiskUsed').textContent = (c.disk_used_mb||0) + ' / ' + (c.disk_mb||0) + ' MB';
+    $('eMem').value = c.mem_mb || 128;
+    $('ePids').value = c.pids_max || 512;
+    $('eDisk').value = c.disk_mb || 500;
+    $('eDisk').min = c.disk_mb || 500;
+    $('eAuto').checked = !!c.autostart;
+    const running = c.state === 'RUNNING';
+    $('editDiskHint').textContent = running
+      ? '当前运行中：磁盘扩容需先停止容器；内存/进程数可热生效'
+      : '磁盘扩容将同步调整 ext4 文件系统';
+    setTimeout(()=>$('eMem').focus(), 80);
+  }catch(e){
+    $('editErr').textContent = '读取配置失败：' + e.message;
+    $('editErr').classList.add('show');
+  }
+}
+function closeEdit(){ $('editMask').classList.remove('show'); }
+
+async function submitEdit(){
+  const mem = parseInt($('eMem').value,10);
+  const pids = parseInt($('ePids').value,10);
+  const disk = parseInt($('eDisk').value,10);
+  const auto = $('eAuto').checked;
+  const errBox = $('editErr');
+  errBox.classList.remove('show');
+  const bad = m => { errBox.textContent = m; errBox.classList.add('show'); return false; };
+
+  if(!(mem>=32 && mem<=1024)) return bad('内存需在 32-1024 MB 之间');
+  if(!(pids>=64 && pids<=8192)) return bad('最大进程数需在 64-8192 之间');
+  if(!(disk>=128 && disk<=8192)) return bad('磁盘需在 128-8192 MB 之间');
+
+  const btn = $('editSubmit');
+  btn.classList.add('loading'); btn.textContent = '保存中…';
+  const log = $('editLog'); log.classList.add('show'); log.innerHTML = '<div>正在应用配置…</div>';
+
+  try{
+    const r = await fetch('/api/container/config', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name: editingName, mem_mb:mem, pids_max:pids, disk_mb:disk, autostart:auto})
+    });
+    const d = await r.json();
+    if(!r.ok || !d.ok){
+      log.innerHTML = '';
+      errBox.textContent = d.error || ('HTTP ' + r.status);
+      errBox.classList.add('show');
+      return;
+    }
+    const lines = [];
+    (d.live||[]).forEach(x=>lines.push('✓ ' + x));
+    (d.changes||[]).forEach(x=>lines.push('✓ ' + x));
+    log.innerHTML = lines.length ? lines.map(x=>`<div class="okline">${esc(x)}</div>`).join('')
+                                 : '<div class="okline">✓ 无变更</div>';
+    toast('配置已更新');
+    setTimeout(async ()=>{ closeEdit(); await refresh(); }, 800);
+  }catch(e){
+    errBox.textContent = '保存失败：' + e.message;
+    errBox.classList.add('show');
+  }finally{
+    btn.classList.remove('loading'); btn.textContent = '保存';
+  }
+}
+
+/* ---------- 删除容器 ---------- */
+let deletingName = '';
+
+function openDelete(name){
+  deletingName = name;
+  $('delName').textContent = name;
+  $('delConfirm').value = '';
+  $('delErr').classList.remove('show');
+  $('delLog').classList.remove('show');
+  $('delLog').innerHTML = '';
+  $('delMask').classList.add('show');
+  setTimeout(()=>$('delConfirm').focus(), 80);
+}
+function closeDelete(){ $('delMask').classList.remove('show'); }
+
+async function submitDelete(){
+  const typed = $('delConfirm').value.trim();
+  const errBox = $('delErr');
+  errBox.classList.remove('show');
+  if(typed !== deletingName){
+    errBox.textContent = '请完整输入容器名「' + deletingName + '」以确认删除';
+    errBox.classList.add('show');
+    return;
+  }
+  const btn = $('delSubmit');
+  btn.classList.add('loading'); btn.textContent = '删除中…';
+  const log = $('delLog'); log.classList.add('show'); log.innerHTML = '<div>正在删除…</div>';
+
+  try{
+    const r = await fetch('/api/container/delete', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name: deletingName, confirm: typed})
+    });
+    const d = await r.json();
+    if(d.steps && d.steps.length){
+      log.innerHTML = d.steps.map(s=>`<div class="okline">✓ ${esc(s)}</div>`).join('');
+    }
+    if(!r.ok || !d.ok){
+      log.innerHTML += `<div style="color:var(--danger)">✗ 失败</div>`;
+      errBox.textContent = d.error || ('HTTP ' + r.status);
+      errBox.classList.add('show');
+      return;
+    }
+    log.innerHTML += `<div class="okline">✓ ${esc(d.message||'已删除')}</div>`;
+    toast('容器 ' + deletingName + ' 已删除');
+    state.expanded.delete(deletingName);
+    setTimeout(async ()=>{ closeDelete(); await refresh(); }, 900);
+  }catch(e){
+    errBox.textContent = '删除失败：' + e.message;
+    errBox.classList.add('show');
+  }finally{
+    btn.classList.remove('loading'); btn.textContent = '确认删除';
+  }
+}
+
+/* ---------- 事件委托 ---------- */
+document.addEventListener('click', async e=>{
+  const tabBtn = e.target.closest('.tab');
+  if(tabBtn){ await switchTab(tabBtn.dataset.tab); return; }
+
+  const actBtn = e.target.closest('[data-act]');
+  if(actBtn){
+    e.stopPropagation();
+    const act = actBtn.dataset.act;
+    if(act==='refresh'){ await refresh(); return; }
+    if(act==='edit'){ await openEdit(actBtn.dataset.name); return; }
+    if(act==='delete'){ openDelete(actBtn.dataset.name); return; }
+    await doAction(actBtn.dataset.name, act);
+    return;
+  }
+
+  const tr = e.target.closest('tr.main-row');
+  if(tr && !e.target.closest('button')){
+    if(tr.dataset.mini === '1'){
+      // 概览里的小表格：点击跳到容器页
+      await switchTab('containers');
+      return;
+    }
+    if(tr.dataset.name) toggleDetail(tr);
+    return;
+  }
+
+  const cp = e.target.closest('[data-copy]');
+  if(cp && cp.dataset.copy){
+    try{ await navigator.clipboard.writeText(cp.dataset.copy); toast('已复制 '+cp.dataset.copy); }
+    catch{ toast('复制失败', true); }
+  }
+});
+
+/* 倒计时 */
+let countdown = 5;
+setInterval(()=>{
+  if(document.hidden) return;
+  if(state.lastOK && Date.now()-state.lastOK>15000 && !$('banner').classList.contains('show')){
+    banner('数据可能已过期，正在重试…', true);
+  }
+  countdown--;
+  const el = $('refreshInfo');
+  if(countdown<=0){ refresh(); return; }
+  el.textContent = countdown+'s 后刷新';
+  el.classList.add('tick');
+  setTimeout(()=>el.classList.remove('tick'), 220);
+}, 1000);
+
+$('btnRefresh').addEventListener('click', ()=>{ countdown=5; refresh(); });
+$('btnNewCt').addEventListener('click', openCreate);
+$('modalClose').addEventListener('click', closeCreate);
+$('modalCancel').addEventListener('click', closeCreate);
+$('modalSubmit').addEventListener('click', submitCreate);
+$('modalMask').addEventListener('click', e=>{ if(e.target === $('modalMask')) closeCreate(); });
+$('editClose').addEventListener('click', closeEdit);
+$('editCancel').addEventListener('click', closeEdit);
+$('editSubmit').addEventListener('click', submitEdit);
+$('editMask').addEventListener('click', e=>{ if(e.target === $('editMask')) closeEdit(); });
+$('delClose').addEventListener('click', closeDelete);
+$('delCancel').addEventListener('click', closeDelete);
+$('delSubmit').addEventListener('click', submitDelete);
+$('delMask').addEventListener('click', e=>{ if(e.target === $('delMask')) closeDelete(); });
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape'){
+    if($('delMask').classList.contains('show')) { closeDelete(); return; }
+    if($('editMask').classList.contains('show')) { closeEdit(); return; }
+    if($('modalMask').classList.contains('show')) { closeCreate(); return; }
+  }
+  if(e.key === 'Enter' && $('modalMask').classList.contains('show') && e.target.tagName === 'INPUT'){
+    e.preventDefault(); submitCreate();
+  }
+  if(e.key === 'Enter' && $('editMask').classList.contains('show') && e.target.tagName === 'INPUT'){
+    e.preventDefault(); submitEdit();
+  }
+  if(e.key === 'Enter' && $('delMask').classList.contains('show') && e.target.tagName === 'INPUT'){
+    e.preventDefault(); submitDelete();
+  }
+});
+window.addEventListener('resize', drawSpark);
+refresh();
+
+/* 载入面板标题（可由配置 TITLE 指定） */
+fetch('/api/health').then(r=>r.json()).then(d=>{
+  if(d && d.title){ document.title = d.title; const b=brandText; if(b) b.textContent = d.title; }
+}).catch(()=>{});
+</script>
+
+<script>
+/* ===== 初始化向导（零参数启动后自动检测） ===== */
+/* ============================================================================
+ * 初始化向导（零参数启动后自动检测环境并引导配置）
+ * 由 index.html 的 <script> 引用，或直接内联
+ * ========================================================================== */
+
+const Wiz = {
+  status: null,
+  step: 1,
+  applying: false,
+  token: '',
+  generated: false,
+};
+
+const wizEl = id => document.getElementById(id);
+
+function wizEsc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function wizBoot() {
+  let st;
+  try {
+    st = await (await fetch('/api/setup/status', { cache: 'no-store' })).json();
+  } catch (e) {
+    return; // 接口不可用就不打扰主界面
+  }
+  Wiz.status = st;
+  if (st.initialized && st.token_set) return; // 已配置完成，直接进主界面
+
+  Wiz.token = st.suggest_token || '';
+  wizEl('wizMask').classList.add('show');
+  wizRender();
+}
+
+function wizRender() {
+  const st = Wiz.status;
+  const step = Wiz.step;
+
+  wizEl('wizStepOf').textContent = `第 ${step} / 3 步`;
+  document.querySelectorAll('.wiz-step').forEach(el => {
+    el.classList.toggle('active', Number(el.dataset.step) === step);
+  });
+  document.querySelectorAll('.wiz-dot').forEach(el => {
+    const n = Number(el.dataset.dot);
+    el.classList.toggle('done', n < step);
+    el.classList.toggle('active', n === step);
+  });
+
+  // ---- 第 1 步：环境检查 ----
+  if (step === 1) {
+    const deps = st.deps || [];
+    wizEl('wizDeps').innerHTML = deps.map(d =>
+      `<div class="dep ${d.ok ? 'ok' : 'bad'}">
+         <span class="dep-ico">${d.ok ? '✓' : '✕'}</span>
+         <span class="dep-name">${wizEsc(d.name)}</span>
+         <span class="dep-detail">${wizEsc(d.detail)}</span>
+       </div>` +
+      (!d.ok && d.fix_hint ? `<div class="dep-fix">修复：<code>${wizEsc(d.fix_hint)}</code></div>` : '')
+    ).join('');
+
+    const env = [
+      ['操作系统', st.os || '-'],
+      ['主机名', st.hostname || '-'],
+      ['配置文件', st.conf_path + (st.initialized ? '（已存在）' : '（待创建）')],
+    ];
+    wizEl('wizEnv').innerHTML = env.map(([k, v]) =>
+      `<div class="kv"><span class="k">${wizEsc(k)}</span><span class="v">${wizEsc(v)}</span></div>`
+    ).join('');
+
+    const warn = (st.warnings || []);
+    wizEl('wizWarn1').innerHTML = warn.length
+      ? warn.map(w => `<div class="wiz-warn">⚠ ${wizEsc(w)}</div>`).join('')
+      : '';
+
+    wizEl('wizNext1').disabled = !st.is_root || !(st.deps || []).every(d => d.ok);
+    wizEl('wizNext1').textContent = st.is_root ? '下一步' : '需要 root 权限';
+  }
+
+  // ---- 第 2 步：基础设置 ----
+  if (step === 2) {
+    if (!wizEl('wTitle').value) wizEl('wTitle').value = st.title || 'webmgr 控制台';
+    if (!wizEl('wListen').value) wizEl('wListen').value = st.listen || '0.0.0.0:8099';
+    if (!wizEl('wToken').value) wizEl('wToken').value = Wiz.token;
+  }
+
+  // ---- 按钮显隐 ----
+  const el = id => document.getElementById(id);
+  const show = (id, v) => { const n = el(id); if (n) n.style.display = v ? '' : 'none'; };
+  show('wizNext1', step === 1);
+  show('wizNext2', step === 2);
+  show('wizApply', step === 3);
+  show('wizBack2', step === 2);
+  show('wizBack3', step === 3);
+  if (step === 1) el('wizBack2').style.visibility = 'hidden';
+  // ---- 第 3 步：网络 ----
+  if (step === 3) {
+    if (!wizEl('wPrefix').value) wizEl('wPrefix').value = st.prefix || '';
+    if (!wizEl('wBridge').value) wizEl('wBridge').value = st.bridge || 'lxcbr6';
+    if (!wizEl('wGateway').value) wizEl('wGateway').value = st.gateway || 'fe80::1';
+
+    // 插件选择
+    const cands = st.plugin_candidates || [];
+    const cur = st.plugin_path || '';
+    let html = `<label class="wiz-radio">
+        <input type="radio" name="wizPlugin" value="" ${cur ? '' : 'checked'}>
+        <span><b>不使用插件</b><br><em>适用：IPv6 整段路由到本机（容器自带可达性）</em></span>
+      </label>`;
+    cands.forEach(p => {
+      const name = p.split('/').slice(-2)[0];
+      html += `<label class="wiz-radio">
+          <input type="radio" name="wizPlugin" value="${wizEsc(p)}" ${cur === p ? 'checked' : ''}>
+          <span><b>${wizEsc(name)}</b> <code>${wizEsc(p)}</code><br>
+          <em>适用：IPv6 逐地址 NDP 解析（本面板需要替容器应答邻居请求）</em></span>
+        </label>`;
+    });
+    if (!cands.length) {
+      html += `<div class="wiz-hint">未检测到插件。如需插件，可把插件目录放到
+        <code>/usr/local/lib/webmgr/plugins/&lt;名字&gt;/webmgr-plugin.sh</code> 后刷新本页。</div>`;
+    }
+    wizEl('wizPlugins').innerHTML = html;
+
+    if (st.suggest_plugin && cands.length && !cur) {
+      const first = document.querySelector('input[name="wizPlugin"]');
+      document.querySelectorAll('input[name="wizPlugin"]').forEach(r => {
+        if (r.value.includes('ndp-proxy')) r.checked = true;
+      });
+      wizEl('wizSuggest').innerHTML =
+        '<div class="wiz-warn">检测到 IPv6 属于「逐地址 NDP 解析」模式，已默认勾选 ndp-proxy 插件</div>';
+    }
+
+    wizEl('wizMem').value = wizEl('wizMem').value || 192;
+    wizEl('wizDisk').value = wizEl('wizDisk').value || 500;
+  }
+}
+
+function wizGo(step) {
+  Wiz.step = step;
+  wizRender();
+}
+
+async function wizApply() {
+  if (Wiz.applying) return;
+  Wiz.applying = true;
+
+  const token = wizEl('wToken').value.trim();
+  const pluginSel = document.querySelector('input[name="wizPlugin"]:checked');
+  const body = {
+    title: wizEl('wTitle').value.trim(),
+    listen: wizEl('wListen').value.trim(),
+    token: token,
+    auto_token: token === '',
+    prefix: wizEl('wPrefix').value.trim(),
+    bridge: wizEl('wBridge').value.trim(),
+    gateway: wizEl('wGateway').value.trim(),
+    plugin: pluginSel ? pluginSel.value : '',
+    mem_mb: parseInt(wizEl('wMem').value, 10) || 192,
+    disk_mb: parseInt(wizEl('wDisk').value, 10) || 500,
+  };
+
+  const btn = wizEl('wizApply');
+  btn.disabled = true;
+  btn.textContent = '初始化中…';
+  const log = wizEl('wizLog');
+  log.innerHTML = '<div>正在执行初始化，请稍候（下载模板可能需要几秒）…</div>';
+
+  try {
+    const r = await fetch('/api/setup/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.steps && d.steps.length) {
+      log.innerHTML = d.steps.map(s => `<div class="okline">✓ ${wizEsc(s)}</div>`).join('');
+    }
+    if (!r.ok || !d.ok) {
+      log.innerHTML += `<div class="badline">✕ ${wizEsc(d.error || ('HTTP ' + r.status))}</div>`;
+      btn.disabled = false;
+      btn.textContent = '重新初始化';
+      return;
+    }
+    log.innerHTML += `<div class="okline">✓ 初始化完成</div>`;
+    if (d.generated && d.token) {
+      log.innerHTML +=
+        `<div class="wiz-token-box">
+           <div class="wiz-token-label">已自动生成访问令牌（请保存）</div>
+           <div class="wiz-token-value" id="wizTokenOut">${wizEsc(d.token)}</div>
+           <div class="wiz-token-hint">之后访问面板需带 <code>?t=令牌</code>，浏览器已记住 30 天</div>
+         </div>`;
+    }
+    btn.textContent = '完成，进入面板';
+    btn.disabled = false;
+    btn.onclick = () => location.reload();
+  } catch (e) {
+    log.innerHTML += `<div class="badline">✕ 请求失败：${wizEsc(e.message)}</div>`;
+    btn.disabled = false;
+    btn.textContent = '重试';
+  } finally {
+    Wiz.applying = false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (!wizEl('wizMask')) return;
+  wizEl('wizNext1')?.addEventListener('click', () => wizGo(2));
+  wizEl('wizNext2')?.addEventListener('click', () => {
+    const t = wizEl('wToken').value.trim();
+    if (t && t.length < 8) {
+      wizEl('wizErr2').textContent = '令牌至少 8 位，或留空自动生成';
+      wizEl('wizErr2').style.display = 'block';
+      return;
+    }
+    wizEl('wizErr2').style.display = 'none';
+    wizGo(3);
+  });
+  wizEl('wizBack2')?.addEventListener('click', () => wizGo(1));
+  wizEl('wizBack3')?.addEventListener('click', () => wizGo(2));
+  wizEl('wizApply')?.addEventListener('click', wizApply);
+  wizEl('wizGenToken')?.addEventListener('click', () => {
+    const a = new Uint8Array(16);
+    crypto.getRandomValues(a);
+    wizEl('wToken').value = Array.from(a).map(b => b.toString(16).padStart(2, '0')).join('');
+    wizEl('wToken').type = 'text';
+  });
+  wizEl('wShowToken')?.addEventListener('click', () => {
+    const i = wizEl('wToken');
+    i.type = i.type === 'password' ? 'text' : 'password';
+  });
+  wizBoot();
+});
+
+</script>
+</body>
+</html>
