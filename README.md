@@ -259,6 +259,20 @@ make release          # 一次产出 linux/darwin/windows × amd64/arm64
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o webmgr .
 ```
 
+### 用 GitHub Actions 自动构建（可选）
+
+打 tag 时自动编译 5 个平台并发 Release 的配置放在
+[`ci/release.workflow.yml`](ci/release.workflow.yml)，需要时复制到
+`.github/workflows/release.yml` 即可启用：
+
+```bash
+mkdir -p .github/workflows
+cp ci/release.workflow.yml .github/workflows/release.yml
+git add .github/workflows/release.yml
+git commit -m "ci: enable release workflow"
+git push
+```
+
 ---
 
 ## 安全须知
