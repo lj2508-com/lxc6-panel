@@ -1,0 +1,44 @@
+TITLE=webmgr 控制台
+# webmgr 配置文件
+# 语法：KEY=VALUE，以 # 开头的行为注释；不写的键使用内置默认值
+# 修改后需 systemctl restart webmgr
+
+# ---- 服务本身 ----
+LISTEN=0.0.0.0:8099
+# 访问令牌：留空则不鉴权（任何能访问端口的人都能看到面板）
+TOKEN=
+# 配置文件里不写 TOKEN 时，也可用启动参数 -token 指定
+
+# ---- LXC ----
+LXCDIR=/var/lib/lxc
+# 容器使用的网桥（安装脚本会按需创建）
+BRIDGE=lxcbr6
+# 容器默认网关（必须是网桥上的链路本地地址）
+CONTAINER_GATEWAY=fe80::1
+
+# ---- IPv6 ----
+# 容器地址前缀；留空则自动探测本机第一个全局 IPv6 的前三段
+IPV6_PREFIX=
+# 是否启用 NDP 应答器相关逻辑
+# 1 = 服务商的 IPv6 是「逐地址 NDP 解析」模式（本项目原始场景）
+# 0 = 普通 VPS（/64 整段路由到本机 MAC），无需 NDP 应答器
+NDP_ENABLE=0
+# 注册容器地址用的脚本（NDP_ENABLE=1 时才用得到）
+ADD_IPV6_SCRIPT=/usr/local/sbin/lxc-add-ipv6
+# NDP 应答器地址清单
+NDPCONF=/etc/ndp-responder.conf
+
+# ---- 新建容器的默认值 ----
+DEFAULT_MEM_MB=192
+DEFAULT_DISK_MB=500
+# Alpine rootfs 模板缓存路径
+TEMPLATE=/var/lib/lxc/.alpine-rootfs.tar.gz
+
+# ---- 概览页展示项（逗号分隔）----
+# systemd 服务；不存在的会显示 absent，不影响功能
+SERVICES=docker,fail2ban,ssh
+# docker 容器（用 docker inspect 查状态）
+DOCKER_CONTAINERS=
+
+# ---- 其它 ----
+PROC=/proc
